@@ -59,7 +59,7 @@ jobs:
                               raise RuntimeError("The app did not start; see the app log artifact")
                           time.sleep(.2)
                   call("ui.home",{"open":False})
-                  call("engine.execute",{"command":"doc.new","params":{}})
+                  call("engine.execute",{"command":"file.new","params":{}})
                   call("ui.home",{"open":False})
                   call("engine.execute",{"command":"solid.box","params":{"length":20,"width":20,"height":20}})
                   call("engine.execute",{"command":"solid.cylinder","params":{"base":[2.5,2.5,-1],"radius":.75,"height":22,"operation":"cut"}})
