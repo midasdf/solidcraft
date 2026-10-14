@@ -2231,7 +2231,7 @@ mod tests {
             holes: vec![Loop2::circle(Vec2::new(0.5, 0.5), 0.15)],
         };
         for plane in [Plane::XY, Plane::XZ] {
-            let body = crate::extrude(&plane, &[region.clone()], 0.0, 20.0).unwrap().remove(0);
+            let body = crate::extrude(&plane, std::slice::from_ref(&region), 0.0, 20.0).unwrap().remove(0);
             let pick = plane.to_world(Vec2::ZERO) + plane.normal() * 10.0;
             assert_eq!(body.crossed_face_loops().unwrap(), 0);
             let out = fillet_g2(&body, &[pick], 0.5).unwrap();
