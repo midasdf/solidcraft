@@ -6,7 +6,7 @@ permissions:
   contents: read
 jobs:
   screenshot:
-    name: Actual crossed-cap behavior before and after
+    name: Actual crossed-cap CPU renders before and after
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
@@ -77,7 +77,8 @@ jobs:
                   state=call("ui.inspect",{})
                   print("G2_CROSSED_UI_STATUS="+json.dumps(state.get("status")))
                   time.sleep(1)
-                  shot=call("ui.screenshot",{"path":str(out)})
+                  shot=call("ui.render",{"path":str(out),"width":1600,"height":1000})
+          print("G2_CROSSED_DOCUMENT="+json.dumps(call("document.inspect",{})))
                   assert out.is_file() and out.stat().st_size>1000,shot
                   print("G2_CROSSED_"+variant.upper()+"_PNG_BASE64="+base64.b64encode(out.read_bytes()).decode())
                   print("G2_CROSSED_"+variant.upper()+"_META="+json.dumps(shot))
