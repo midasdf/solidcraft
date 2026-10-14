@@ -248,7 +248,10 @@ pub fn run(root: &Path, site: Option<&str>, required: bool) -> Result<(), String
     // A complete cache precedes activation: an update requested now can still join v5's
     // pending install instead of fetching v6. Wait for v5 to take over before the next update.
     wait_for(&mut cdp, &state_js, "v5's worker has taken over", |s| {
-        s["installing"].is_null() && s["waiting"].is_null() && s["active"] == "activated" && s["retired"].as_array().is_some_and(|r| r.contains(&json!(name4)))
+        s["installing"].is_null()
+            && s["waiting"].is_null()
+            && s["active"] == "activated"
+            && s["retired"].as_array().is_some_and(|r| r.contains(&json!(name4)))
     })?;
     cdp.eval("navigator.serviceWorker.getRegistration().then((r) => r.update().then(() => true))")?;
     wait_for(&mut cdp, &state_js, "the worker keeps build v6", keeps(5))?;
