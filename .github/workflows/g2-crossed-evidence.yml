@@ -36,6 +36,7 @@ jobs:
           env=dict(os.environ,SOLIDCRAFT_CONTROL_TOKEN=token,LIBGL_ALWAYS_SOFTWARE="1",WINIT_UNIX_BACKEND="x11",WGPU_BACKEND="vulkan")
           expect_rejected=os.environ.get("G2_EXPECT_REJECTED")=="1"
           variant="after" if expect_rejected else "before"
+          env["SOLIDCRAFT_CRASH_DIR"]=str(pathlib.Path(os.environ["RUNNER_TEMP"])/("g2-cap-"+variant+"-crashes"))
           out=pathlib.Path(os.environ["RUNNER_TEMP"])/("g2-crossed-cap-"+variant+".png")
           log=pathlib.Path(os.environ["RUNNER_TEMP"])/("g2-crossed-cap-"+variant+".log")
           def call(method,params):
