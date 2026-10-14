@@ -5,7 +5,7 @@ name: Packaging lint
 
 on:
   push:
-    branches: [main]
+    branches: [main, codex/closure-ci-pr-862-20261014]
     paths: [".github/workflows/**", "packaging/**", "assets/**"]
   pull_request:
     paths: [".github/workflows/**", "packaging/**", "assets/**"]

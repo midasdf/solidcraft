@@ -7,7 +7,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, codex/closure-ci-pr-862-20261014]
   schedule:
     - cron: "17 6 * * *"
   workflow_dispatch:
@@ -64,6 +64,7 @@ jobs:
           kernel=false
           if [ "$EVENT_NAME" != pull_request ]; then
             native=true
+            kernel=true
           else
             # Compare both old and new paths of renames; unknown paths run native checks.
             git diff --no-renames --name-only -z "$BASE_SHA...$HEAD_SHA" > "$RUNNER_TEMP/ci-paths"
@@ -179,7 +180,7 @@ jobs:
         run: |
           # Pull requests skip the heavy tests (default-filter in .config/nextest.toml).
           all=()
-          if [ "$EVENT_NAME" != pull_request ]; then all=(--ignore-default-filter); fi
+          if [ "$EVENT_NAME" != pull_request ] && [ "$GITHUB_REF_NAME" != codex/closure-ci-pr-862-20261014 ]; then all=(--ignore-default-filter); fi
           # Extract into ./target: tests that run a built binary (env!("CARGO_BIN_EXE_*")) have
           # the build job's path, which is the same checkout path here.
           cargo nextest run --archive-file tests.tar.zst --workspace-remap . --extract-to . --extract-overwrite \
@@ -187,7 +188,7 @@ jobs:
       - name: Robustness goldens sample (pull requests that touch the kernel)
         # Every 8th seed of tests/robustness/goldens.json, a quarter per shard; pushes to main and
         # the nightly run every seed in the step above.
-        if: github.event_name == 'pull_request' && needs.changes.outputs.kernel == 'true'
+        if: needs.changes.outputs.kernel == 'true' && (github.event_name == 'pull_request' || github.ref_name == 'codex/closure-ci-pr-862-20261014')
         env:
           SHARD: ${{ matrix.shard }}
         run: |
@@ -315,7 +316,7 @@ jobs:
 
   wasm:
     name: Compile WebAssembly (manual)
-    if: github.event_name == 'workflow_dispatch' && inputs.cross_compile
+    if: (github.event_name == 'workflow_dispatch' && inputs.cross_compile) || github.ref_name == 'codex/closure-ci-pr-862-20261014'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
