@@ -1,0 +1,140 @@
+name: PR 862 review diagnostics and UI evidence
+on:
+  push:
+    branches: [codex/review-pr-862-20261014]
+permissions:
+  contents: read
+jobs:
+  seed20:
+    name: Seed 20 (${{ matrix.label }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: upstream-b34d452
+            ref: b34d45233dba677ebf01433a57920251915346f2
+          - label: upstream-18347b3
+            ref: 18347b3d0d9177e8f73f9a68316c7073cb99ca00
+          - label: review-candidate
+            ref: 63d4645f8d37edd0eadecf5788312b3d6e2ebd46
+    env:
+      CARGO_INCREMENTAL: "0"
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ matrix.ref }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        with:
+          key: native-tests
+      - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+        with:
+          version: v0.16.0
+      - name: Compare the unchanged ordinary-fillet seed
+        run: |
+          cat >> crates/engine/src/tests/robustness_goldens.rs <<'RS'
+
+          #[test]
+          fn diagnostic_seed_20() {
+              let got = fuzz::golden(20, MAX_STEPS);
+              let want = load()["seeds"]["20"].clone();
+              println!("DIAGNOSTIC_GOLDEN_20={got}");
+              println!("DIAGNOSTIC_DIFF_20={:?}", differs(&want, &got));
+          }
+          RS
+          cargo test -p solidcraft-engine --lib --profile ci --locked diagnostic_seed_20 -- --nocapture
+  screenshot:
+    name: Actual G2 canvas and dialog screenshot
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CARGO_INCREMENTAL: "0"
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        with:
+          key: native-tests
+      - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+        with:
+          version: v0.16.0
+      - name: Install headless display and software rendering
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb xauth libgl1-mesa-dri mesa-vulkan-drivers
+      - name: Build the actual desktop app
+        run: cargo build -p solidcraft --profile ci --locked
+      - name: Capture the actual G2 editor
+        run: |
+          cat > "$RUNNER_TEMP/capture-g2.py" <<'PY'
+          import base64,json,os,pathlib,secrets,socket,subprocess,time
+          port=43129
+          token=secrets.token_hex(32)
+          env=dict(os.environ,SOLIDCRAFT_CONTROL_TOKEN=token,LIBGL_ALWAYS_SOFTWARE="1")
+          out=pathlib.Path(os.environ["RUNNER_TEMP"])/"g2-equivalent-radius.png"
+          log=pathlib.Path(os.environ["RUNNER_TEMP"])/"g2-app.log"
+          def call(method,params):
+              with socket.create_connection(("127.0.0.1",port),timeout=10) as sock:
+                  sock.settimeout(120)
+                  sock.sendall((json.dumps({"id":1,"method":method,"params":params,"token":token})+"\n").encode())
+                  result=json.loads(sock.makefile("rb").readline())
+                  if not result.get("ok"):
+                      raise RuntimeError(result.get("error",str(result)))
+                  return result.get("result")
+          with log.open("w") as output:
+              app=subprocess.Popen(["target/ci/solidcraft","--control",str(port)],env=env,stdout=output,stderr=subprocess.STDOUT)
+              try:
+                  deadline=time.monotonic()+90
+                  while True:
+                      try:
+                          call("ui.inspect",{})
+                          break
+                      except (OSError,ValueError):
+                          if app.poll() is not None or time.monotonic()>deadline:
+                              raise RuntimeError("The app did not start; see the app log artifact")
+                          time.sleep(.2)
+                  call("ui.home",{"open":False})
+                  call("engine.execute",{"command":"solid.box","params":{"length":20,"width":20,"height":20}})
+                  call("engine.execute",{"command":"solid.fillet","params":{"edges":[[20,0,10]],"radius":6,"type":"curvature","name":"G2"}})
+                  call("ui.view",{"view":"iso","animate":False})
+                  call("ui.view",{"view":"fit","animate":False})
+                  call("ui.editFeature",{"feature":"G2"})
+                  deadline=time.monotonic()+60
+                  while True:
+                      state=call("ui.inspect",{})
+                      preview=state.get("preview",{})
+                      if not preview.get("busy"):
+                          if preview.get("error"):
+                              raise RuntimeError(preview["error"])
+                          break
+                      if time.monotonic()>deadline:
+                          raise RuntimeError("Preview did not settle")
+                      time.sleep(.2)
+                  time.sleep(1)
+                  shot=call("ui.screenshot",{"path":str(out)})
+                  assert out.is_file() and out.stat().st_size>1000,shot
+                  print("G2_SCREENSHOT_PNG_BASE64="+base64.b64encode(out.read_bytes()).decode())
+                  print("G2_SCREENSHOT_META="+json.dumps(shot))
+              finally:
+                  app.terminate()
+                  try:app.wait(timeout=5)
+                  except subprocess.TimeoutExpired:app.kill()
+          
+          PY
+          xvfb-run -a -s "-screen 0 1600x1000x24" python3 "$RUNNER_TEMP/capture-g2.py"
+      - name: Upload actual screenshot and app log
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: g2-equivalent-radius-ui
+          path: |
+            ${{ runner.temp }}/g2-equivalent-radius.png
+            ${{ runner.temp }}/g2-app.log
