@@ -26,7 +26,7 @@ jobs:
       - name: Install headless display and software rendering
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends xvfb xauth libgl1-mesa-dri mesa-vulkan-drivers
+          sudo apt-get install -y --no-install-recommends xvfb xauth libxkbcommon-x11-0 libgl1-mesa-dri mesa-vulkan-drivers
       - name: Build the actual desktop app
         run: cargo build -p solidcraft --profile ci --locked
       - name: Capture the actual G2 editor
