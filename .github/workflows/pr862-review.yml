@@ -1,7 +1,6 @@
 name: PR 862 review diagnostics and UI evidence
 on:
-  push:
-    branches: [codex/review-pr-862-20261014]
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
